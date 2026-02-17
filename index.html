@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>쇼핑 리스트</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 480px;
+      padding: 32px 24px;
+      height: fit-content;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .input-row input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-row input:focus {
+      border-color: #4a6cf7;
+    }
+
+    .input-row button {
+      padding: 12px 20px;
+      background: #4a6cf7;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    .input-row button:hover {
+      background: #3b5de7;
+    }
+
+    .stats {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 12px;
+      text-align: right;
+    }
+
+    ul {
+      list-style: none;
+    }
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.15s;
+    }
+
+    li:hover {
+      background: #fafafa;
+    }
+
+    li.checked .item-text {
+      text-decoration: line-through;
+      color: #aaa;
+    }
+
+    .checkbox {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+
+    .checkbox:hover {
+      border-color: #4a6cf7;
+    }
+
+    li.checked .checkbox {
+      background: #4a6cf7;
+      border-color: #4a6cf7;
+    }
+
+    li.checked .checkbox::after {
+      content: '✓';
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .item-text {
+      flex: 1;
+      font-size: 15px;
+      color: #333;
+      word-break: break-word;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .delete-btn:hover {
+      color: #e74c3c;
+      background: #fdecea;
+    }
+
+    .empty {
+      text-align: center;
+      color: #bbb;
+      padding: 40px 0;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🛒 쇼핑 리스트</h1>
+    <div class="input-row">
+      <input type="text" id="itemInput" placeholder="아이템을 입력하세요" />
+      <button id="addBtn">추가</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <ul id="list"></ul>
+    <div class="empty" id="empty">리스트가 비어 있습니다</div>
+  </div>
+
+  <script>
+    const listEl = document.getElementById('list');
+    const inputEl = document.getElementById('itemInput');
+    const emptyEl = document.getElementById('empty');
+    const statsEl = document.getElementById('stats');
+    const addBtn = document.getElementById('addBtn');
+
+    let items = JSON.parse(localStorage.getItem('shopping-list') || '[]');
+
+    // addEventListener 사용 (MDN 권장: 인라인 onclick 대신)
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addItem();
+    });
+
+    addBtn.addEventListener('click', addItem);
+
+    // 이벤트 위임 (MDN 권장: 부모에 한 번만 리스너 등록)
+    listEl.addEventListener('click', (e) => {
+      const li = e.target.closest('li');
+      if (!li) return;
+      const idx = Number(li.dataset.idx);
+
+      if (e.target.closest('.checkbox')) {
+        toggle(idx);
+      } else if (e.target.closest('.delete-btn')) {
+        remove(idx);
+      }
+    });
+
+    function save() {
+      localStorage.setItem('shopping-list', JSON.stringify(items));
+    }
+
+    function render() {
+      // replaceChildren()으로 안전하게 자식 초기화 (MDN 권장: innerHTML = '' 대신)
+      listEl.replaceChildren();
+      emptyEl.style.display = items.length ? 'none' : 'block';
+
+      const checked = items.filter(i => i.checked).length;
+      statsEl.textContent = items.length
+        ? `${checked} / ${items.length} 완료`
+        : '';
+
+      // DOM API로 요소 생성 (MDN 권장: innerHTML 대신 createElement + textContent)
+      items.forEach((item, idx) => {
+        const li = document.createElement('li');
+        li.dataset.idx = idx;
+        if (item.checked) li.classList.add('checked');
+
+        const checkbox = document.createElement('div');
+        checkbox.className = 'checkbox';
+
+        const span = document.createElement('span');
+        span.className = 'item-text';
+        span.textContent = item.text;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+
+        li.append(checkbox, span, delBtn);
+        listEl.appendChild(li);
+      });
+    }
+
+    function addItem() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+      items.push({ text, checked: false });
+      inputEl.value = '';
+      inputEl.focus();
+      save();
+      render();
+    }
+
+    function toggle(idx) {
+      items[idx].checked = !items[idx].checked;
+      save();
+      render();
+    }
+
+    function remove(idx) {
+      items.splice(idx, 1);
+      save();
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
