@@ -172,14 +172,20 @@
     <div class="empty" id="empty">리스트가 비어 있습니다</div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Supabase 클라이언트 초기화
+    const SUPABASE_URL = 'https://xoorjhsyvxowvqdrmepk.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhvb3JqaHN5dnhvd3ZxZHJtZXBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNDQ4NzEsImV4cCI6MjA4NjkyMDg3MX0.bUnrqUAZBYAark1bADeG6sq4suMogC8sZiVV0flB-EY';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const listEl = document.getElementById('list');
     const inputEl = document.getElementById('itemInput');
     const emptyEl = document.getElementById('empty');
     const statsEl = document.getElementById('stats');
     const addBtn = document.getElementById('addBtn');
 
-    let items = JSON.parse(localStorage.getItem('shopping-list') || '[]');
+    let items = [];
 
     // addEventListener 사용 (MDN 권장: 인라인 onclick 대신)
     inputEl.addEventListener('keydown', (e) => {
@@ -192,17 +198,28 @@
     listEl.addEventListener('click', (e) => {
       const li = e.target.closest('li');
       if (!li) return;
-      const idx = Number(li.dataset.idx);
+      const id = Number(li.dataset.id);
 
       if (e.target.closest('.checkbox')) {
-        toggle(idx);
+        toggle(id);
       } else if (e.target.closest('.delete-btn')) {
-        remove(idx);
+        remove(id);
       }
     });
 
-    function save() {
-      localStorage.setItem('shopping-list', JSON.stringify(items));
+    // Supabase에서 데이터 로드
+    async function loadItems() {
+      const { data, error } = await supabase
+        .from('shopping_items')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('데이터 로드 실패:', error);
+        return;
+      }
+      items = data;
+      render();
     }
 
     function render() {
@@ -216,9 +233,9 @@
         : '';
 
       // DOM API로 요소 생성 (MDN 권장: innerHTML 대신 createElement + textContent)
-      items.forEach((item, idx) => {
+      items.forEach((item) => {
         const li = document.createElement('li');
-        li.dataset.idx = idx;
+        li.dataset.id = item.id;
         if (item.checked) li.classList.add('checked');
 
         const checkbox = document.createElement('div');
@@ -237,29 +254,60 @@
       });
     }
 
-    function addItem() {
+    async function addItem() {
       const text = inputEl.value.trim();
       if (!text) return;
-      items.push({ text, checked: false });
       inputEl.value = '';
       inputEl.focus();
-      save();
+
+      const { data, error } = await supabase
+        .from('shopping_items')
+        .insert({ text, checked: false })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('아이템 추가 실패:', error);
+        return;
+      }
+      items.push(data);
       render();
     }
 
-    function toggle(idx) {
-      items[idx].checked = !items[idx].checked;
-      save();
+    async function toggle(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      const newChecked = !item.checked;
+
+      const { error } = await supabase
+        .from('shopping_items')
+        .update({ checked: newChecked })
+        .eq('id', id);
+
+      if (error) {
+        console.error('상태 변경 실패:', error);
+        return;
+      }
+      item.checked = newChecked;
       render();
     }
 
-    function remove(idx) {
-      items.splice(idx, 1);
-      save();
+    async function remove(id) {
+      const { error } = await supabase
+        .from('shopping_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('아이템 삭제 실패:', error);
+        return;
+      }
+      items = items.filter(i => i.id !== id);
       render();
     }
 
-    render();
+    // 초기 데이터 로드
+    loadItems();
   </script>
 </body>
 </html>
